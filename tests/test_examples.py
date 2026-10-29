@@ -1,0 +1,55 @@
+"""тесты примеров из папки examples"""
+
+from pathlib import Path
+
+import pytest
+
+from depviz.cli import EXIT_ERROR, EXIT_OK, main
+
+ROOT = Path(__file__).resolve().parent.parent
+EXAMPLES = ROOT / "examples"
+
+
+def run_example(name, monkeypatch, capsys):
+    """запускает пример из корня проекта и возвращает код и вывод"""
+    monkeypatch.chdir(ROOT)
+    code = main([str(EXAMPLES / f"{name}.yaml")])
+    return code, capsys.readouterr()
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        ("chain", ["A -> B", "B -> C", "C -> (нет зависимостей)"]),
+        (
+            "diamond",
+            ["A -> B, C", "B -> D", "C -> D", "D -> (нет зависимостей)"],
+        ),
+        ("cycle", ["A -> B", "B -> C", "C -> A"]),
+        ("selfloop", ["A -> A, B", "B -> (нет зависимостей)"]),
+        ("single", ["A -> (нет зависимостей)"]),
+        (
+            "filter",
+            ["A -> B, C", "B -> (нет зависимостей)", "C -> (нет зависимостей)"],
+        ),
+    ],
+)
+def test_example_output(name, expected, monkeypatch, capsys):
+    """пример печатает ожидаемый граф"""
+    code, captured = run_example(name, monkeypatch, capsys)
+    assert code == EXIT_OK
+    assert captured.out.splitlines()[1:] == expected
+
+
+@pytest.mark.parametrize(
+    "name, message",
+    [
+        ("unknown", "Пакет не найден: Z"),
+        ("root_filtered", "содержит подстроку"),
+    ],
+)
+def test_example_errors(name, message, monkeypatch, capsys):
+    """примеры с ошибками завершаются с кодом 1"""
+    code, captured = run_example(name, monkeypatch, capsys)
+    assert code == EXIT_ERROR
+    assert message in captured.err
