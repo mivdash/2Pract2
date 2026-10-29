@@ -4,8 +4,10 @@ import argparse
 import sys
 
 from depviz import nuget, reverse, testrepo
+from depviz.asciitree import format_tree
 from depviz.config import ConfigError, load_config
-from depviz.errors import GraphError, RepositoryError
+from depviz.dot import save_image
+from depviz.errors import GraphError, RenderError, RepositoryError
 from depviz.graph import build_graph
 
 DEFAULT_CONFIG = "config.yaml"
@@ -71,16 +73,41 @@ def print_reverse(root, graph):
     print(f"Зависят от {root}: {', '.join(dependents) or 'никто'}")
 
 
-def run(args, config):
-    """строит граф нужного вида и печатает его"""
-    if args.reverse:
-        source = make_reverse_source(config)
-        printer = print_reverse
+def show_graph(config, graph):
+    """дерево из ascii при включённом параметре, иначе список"""
+    if config.ascii_tree:
+        print("\n".join(format_tree(config.package_name, graph)))
     else:
-        source = make_source(config)
-        printer = print_graph
-    graph = build_graph(config.package_name, source, config.filter_substring)
-    printer(config.package_name, graph)
+        print_graph(config.package_name, graph)
+
+
+def run_forward(config):
+    """строит граф зависимостей, показывает и сохраняет изображение"""
+    graph = build_graph(
+        config.package_name, make_source(config), config.filter_substring
+    )
+    show_graph(config, graph)
+    dot_file = save_image(config.package_name, graph, config.output_image)
+    print(f"Описание Graphviz сохранено: {dot_file}")
+    print(f"Изображение сохранено: {config.output_image}")
+
+
+def run_reverse(config):
+    """строит и печатает обратные зависимости"""
+    graph = build_graph(
+        config.package_name,
+        make_reverse_source(config),
+        config.filter_substring,
+    )
+    print_reverse(config.package_name, graph)
+
+
+def run(args, config):
+    """выбирает режим работы"""
+    if args.reverse:
+        run_reverse(config)
+    else:
+        run_forward(config)
 
 
 def main(argv=None):
@@ -88,7 +115,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
         run(args, load_config(args.config))
-    except (ConfigError, RepositoryError, GraphError) as err:
+    except (ConfigError, RepositoryError, GraphError, RenderError) as err:
         print(f"Ошибка: {err}", file=sys.stderr)
         return EXIT_ERROR
     return EXIT_OK

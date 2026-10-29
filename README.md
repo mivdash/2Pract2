@@ -3,7 +3,7 @@
 Инструмент визуализации графа зависимостей для NuGet-пакетов (.NET).
 Зависимости получаются без менеджеров пакетов, напрямую из репозитория.
 
-Практическая работа №2, вариант 7, дисциплина «Конфигурационное управление».
+Практическая работа №2, вариант 7.
 
 ## Статус
 
@@ -13,7 +13,7 @@
 | 2 | Сбор данных | готово |
 | 3 | Основные операции (BFS без рекурсии, фильтр) | готово |
 | 4 | Обратные зависимости | готово |
-| 5 | Визуализация (Graphviz, PNG) | не начат |
+| 5 | Визуализация (Graphviz, PNG) | готово |
 
 ## Настройки
 
@@ -43,7 +43,8 @@ filter_substring: ""
 
 ## Что делает этап 1
 
-Читает конфиг, проверяет все параметры и печатает их в формате `ключ: значение`.
+Читает конфиг, проверяет все параметры и печатает их в формате `ключ: значение`
+(вывод параметров нужен только на этом этапе, позже он убран).
 При ошибке пишет сообщение в stderr и завершается с кодом 1.
 
 Обрабатываемые ошибки: файл не найден, это папка, неверный YAML, пустой файл,
@@ -104,7 +105,7 @@ $ py -m depviz config.yaml
 - Если зависимость не найдена в репозитории, она остаётся листом графа.
   Неизвестный корневой пакет даёт ошибку.
 
-Формат вывода:
+Формат вывода списком (при `ascii_tree: false`):
 
 ```
 Граф зависимостей пакета A (пакетов: 4)
@@ -184,56 +185,215 @@ A <- (никто не зависит)
 | Файл | Что показывает |
 |---|---|
 | `rev_diamond.yaml` | у пакета D два пользователя, верхний пакет A один раз |
-| `rev_chain.yaml` | цепочка вверх от C |
-| `rev_top.yaml` | от верхнего пакета никто не зависит |
 | `rev_cycle.yaml` | цикл не зацикливает обход |
 | `rev_filter.yaml` | фильтр `B` убирает пакет B из результата |
-| `rev_unknown.yaml` | ошибка: пакета нет в файле |
+
+## Что делает этап 5
+
+После построения графа программа:
+
+1. Печатает зависимости: ASCII-деревом при `ascii_tree: true`, иначе списком
+   из этапа 3.
+2. Формирует описание графа на языке **Graphviz (DOT)** и сохраняет его
+   рядом с картинкой (`graph.png` даёт `graph.dot`).
+3. Сохраняет изображение **PNG** в файл `output_image`, вызвав программу
+   `dot` из Graphviz.
+
+Для картинки нужно установить [Graphviz](https://graphviz.org/download/)
+и добавить его в `PATH` (в установщике для Windows есть такая галочка).
+Проверка: `dot -V`. Если `dot` не найден, программа сообщит об этом, а
+DOT-файл всё равно будет сохранён.
+
+### ASCII-дерево
+
+```
+A
+|-- B
+|   `-- D
+|       `-- E
+`-- C
+    `-- D (см. выше)
+```
+
+- Повторный пакет с зависимостями раскрывается один раз, дальше стоит
+  пометка `(см. выше)`. Так дерево не разрастается на общих пакетах.
+- Пакет, который уже есть выше по ветке, помечается `(цикл)` и не
+  раскрывается: `A -> B -> C -> A`.
+- Дерево строится рекурсивно, это разрешено заданием только для этапа 3.
+
+### Описание Graphviz
+
+```
+digraph dependencies {
+    rankdir=LR;
+    "A" [style=filled, fillcolor=lightblue];
+    "A" -> "B";
+    "A" -> "C";
+    "B" -> "D";
+    "C" -> "D";
+}
+```
+
+Корневой пакет выделен цветом, стрелка `A -> B` значит «A зависит от B».
+Файлы `*.png` и `*.dot` внесены в `.gitignore`: это результат запуска, а не
+исходный код.
+
+### Примеры
+
+Запуск:
+
+```powershell
+$env:PYTHONPATH="src"; py -m depviz examples/tree_shared.yaml
+```
+
+| Файл | Что показывает |
+|---|---|
+| `tree_shared.yaml` | дерево с общим пакетом D, пометка `(см. выше)` |
+| `nuget_newtonsoft.yaml` | настоящий пакет `Newtonsoft.Json` |
+| `nuget_logging.yaml` | настоящий пакет `Microsoft.Extensions.Logging` |
+| `nuget_moq.yaml` | настоящий пакет `Moq` |
+
+В конфигах настоящих пакетов стоит `filter_substring: System`: платформенные
+пакеты `System.*` исключаются, иначе граф получается в несколько раз больше
+и сбор занимает минуты. Чтобы увидеть полный граф, поставьте `""`.
+
+### Сравнение со штатными инструментами
+
+Штатные средства NuGet: страница пакета на nuget.org (раздел
+Dependencies) и команда `dotnet list package --include-transitive`.
+Для проверки:
+
+```powershell
+dotnet new console -o cmp
+cd cmp
+dotnet add package Newtonsoft.Json
+dotnet list package --include-transitive
+```
+
+Сравнивать нужно набор пакетов в графе `depviz` и в выводе `dotnet`.
+Расхождения возможны по таким причинам:
+
+- **Выбор версии.** `depviz` берёт последнюю стабильную версию каждого
+  пакета. NuGet при восстановлении берёт самую низкую версию, подходящую
+  под диапазон: для `[4.3.0, )` это `4.3.0`. У разных версий один и тот же
+  пакет может иметь разные зависимости.
+- **Платформы.** Зависимости в NuGet сгруппированы по целевым платформам
+  (`net8.0`, `netstandard2.0` и так далее). `depviz` объединяет все группы.
+  `dotnet list` показывает только то, что нужно платформе проекта, а
+  страница на nuget.org показывает группы по отдельности.
+- **Фильтр.** При `filter_substring` часть пакетов намеренно исключена.
+- **Конфликты версий.** `dotnet` выбирает одну версию пакета на весь проект
+  и выводит плоский список с версиями. `depviz` версий не показывает и
+  рисует связи между пакетами.
+- **Предварительные версии.** `depviz` берёт предварительную версию только
+  если стабильных нет.
+
+Поэтому набор пакетов у `depviz` обычно **шире**, чем у `dotnet list`:
+в нём собраны зависимости всех платформ.
+
+### Результаты на настоящих пакетах
+
+Запуск `examples/nuget_*.yaml` с фильтром `System` (данные NuGet на
+29.10.2026).
+
+**Newtonsoft.Json 13.0.4**, пакетов в графе: 6
+
+```
+Newtonsoft.Json
+|-- Microsoft.CSharp
+|   `-- NETStandard.Library
+|       |-- Microsoft.NETCore.Platforms
+|       `-- Microsoft.Win32.Primitives
+|           |-- Microsoft.NETCore.Platforms
+|           `-- Microsoft.NETCore.Targets
+`-- NETStandard.Library (см. выше)
+```
+
+**Microsoft.Extensions.Logging 10.0.14**, пакетов в графе: 7
+
+```
+Microsoft.Extensions.Logging
+|-- Microsoft.Bcl.AsyncInterfaces
+|-- Microsoft.Extensions.DependencyInjection
+|   |-- Microsoft.Bcl.AsyncInterfaces
+|   `-- Microsoft.Extensions.DependencyInjection.Abstractions
+|       `-- Microsoft.Bcl.AsyncInterfaces
+|-- Microsoft.Extensions.Logging.Abstractions
+|   `-- Microsoft.Extensions.DependencyInjection.Abstractions (см. выше)
+`-- Microsoft.Extensions.Options
+    |-- Microsoft.Extensions.DependencyInjection.Abstractions (см. выше)
+    `-- Microsoft.Extensions.Primitives
+```
+
+**Moq 4.20.72**, пакетов в графе: 2
+
+```
+Moq
+`-- Castle.Core
+```
+
+### Сравнение с nuget.org
+
+Прямые зависимости корневых пакетов сверены со страницами пакетов на
+nuget.org (раздел Dependencies):
+
+| Пакет | nuget.org (все платформы вместе) | depviz без фильтра | depviz с фильтром `System` |
+|---|---|---|---|
+| Newtonsoft.Json 13.0.4 | Microsoft.CSharp, NETStandard.Library, System.ComponentModel.TypeConverter, System.Runtime.Serialization.Formatters, System.Runtime.Serialization.Primitives, System.Xml.XmlDocument | совпадает, 6 пакетов | Microsoft.CSharp, NETStandard.Library |
+| Microsoft.Extensions.Logging 10.0.14 | Microsoft.Bcl.AsyncInterfaces, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Options, System.Diagnostics.DiagnosticSource, System.ValueTuple | совпадает, 6 пакетов | первые четыре |
+| Moq 4.20.72 | Castle.Core, System.Threading.Tasks.Extensions | совпадает, 2 пакета | Castle.Core |
+
+Что показало сравнение:
+
+- **Платформы дают главное расхождение.** На nuget.org зависимости разбиты по
+  группам. У `Newtonsoft.Json` 13.0.4 группы `net6.0`, `netstandard2.0` и
+  `net45` **пустые**, а все 6 зависимостей лежат только в группах
+  `netstandard1.0` и `netstandard1.3`. Проект на .NET 8 получит от этого
+  пакета ноль зависимостей, поэтому `dotnet list package --include-transitive`
+  для такого проекта их не покажет. `depviz` объединяет все группы, и его граф
+  шире.
+- **Вторые и более глубокие уровни** (например, `NETStandard.Library` и
+  `Microsoft.Win32.Primitives`) получены тем же способом: по последней версии
+  каждого пакета. На nuget.org я их по отдельности не сверял.
+- **Версии.** `depviz` берёт последнюю версию, а NuGet выбирает минимальную,
+  подходящую под диапазон (`>= 1.6.1` даёт `1.6.1`), поэтому глубокие уровни
+  могут отличаться.
 
 ## Установка, запуск, тесты
+
+Нужны Python 3.10+ и (для картинок) Graphviz. Команды для Windows (PowerShell):
+
+```powershell
+py -m pip install -r requirements.txt
+py -m pytest                                           # тесты
+$env:PYTHONPATH="src"; py -m depviz config.yaml        # граф зависимостей
+$env:PYTHONPATH="src"; py -m depviz --reverse examples/rev_diamond.yaml
+```
+
+Linux и macOS:
 
 ```bash
 make install        # pip install -r requirements.txt
 make run            # запуск с config.yaml
 make run CONFIG=my.yaml
 make test           # pytest -v
+make run CONFIG=examples/tree_shared.yaml
 ```
 
-То же без make:
-
-```bash
-./run.sh                 # или ./run.sh my.yaml
-python3 -m pytest -v
-```
-
-## Примеры
-
-Нормальный запуск:
+Ошибки печатаются в stderr со словом «Ошибка:», код завершения 1:
 
 ```
-$ ./run.sh
-package_name: Newtonsoft.Json
-repository: https://api.nuget.org/v3/index.json
-test_mode: False
-output_image: graph.png
-ascii_tree: True
-filter_substring:
-```
-
-Ошибка:
-
-```
-$ ./run.sh nope.yaml
+$ py -m depviz nope.yaml
 Ошибка: Файл конфигурации не найден: nope.yaml
 ```
 
 ## Структура
 
 ```
-src/depviz/   исходный код (config, cli, http, nuget, graph, testrepo, reverse, errors)
+src/depviz/   исходный код (config, cli, http, nuget, graph, testrepo,
+              reverse, dot, asciitree, errors)
 tests/        тесты pytest
-examples/     примеры тестового репозитория
+examples/     примеры тестового репозитория и настоящих пакетов
 config.yaml   пример конфигурации
-run.sh        скрипт запуска
 Makefile      install, run, test
 ```

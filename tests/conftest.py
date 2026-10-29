@@ -2,6 +2,8 @@
 
 import pytest
 
+from depviz import cli
+
 VALID_YAML = """\
 package_name: Newtonsoft.Json
 repository: https://api.nuget.org/v3/index.json
@@ -30,3 +32,17 @@ def test_repo_file(tmp_path):
     path = tmp_path / "repo.txt"
     path.write_text("A: B C\nB: C\nC:\n", encoding="utf-8")
     return str(path)
+
+
+@pytest.fixture(autouse=True)
+def no_image_files(monkeypatch):
+    """тесты cli не создают файлы и не запускают dot"""
+    saved = []
+
+    def fake_save(root, graph, image):
+        """запоминает вызов вместо сохранения"""
+        saved.append((root, graph, image))
+        return image.replace(".png", ".dot")
+
+    monkeypatch.setattr(cli, "save_image", fake_save)
+    return saved
