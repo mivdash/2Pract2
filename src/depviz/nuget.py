@@ -109,6 +109,33 @@ def fetch_registration(base, name, fetch):
         raise
 
 
+def cache_index(fetch, repository):
+    """запоминает корневой документ репозитория, остальное не хранит"""
+    memo = {}
+
+    def cached(url):
+        """корневой документ загружается один раз"""
+        if url != repository:
+            return fetch(url)
+        if url not in memo:
+            memo[url] = fetch(url)
+        return memo[url]
+
+    return cached
+
+
+def make_source(repository, fetch=fetch_json):
+    """источник зависимостей из nuget для построения графа"""
+    cached = cache_index(fetch, repository)
+
+    def source(name):
+        """имена прямых зависимостей пакета"""
+        package = get_package(name, repository, cached)
+        return [item.name for item in package.dependencies]
+
+    return source
+
+
 def get_package(name, repository, fetch=fetch_json):
     """возвращает последнюю версию пакета и его прямые зависимости"""
     index = fetch(repository)
