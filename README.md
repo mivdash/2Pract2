@@ -295,6 +295,74 @@ dotnet list package --include-transitive
 Поэтому набор пакетов у `depviz` обычно **шире**, чем у `dotnet list`:
 в нём собраны зависимости всех платформ.
 
+### Результаты на настоящих пакетах
+
+Запуск `examples/nuget_*.yaml` с фильтром `System` (данные NuGet на
+29.10.2026).
+
+**Newtonsoft.Json 13.0.4**, пакетов в графе: 6
+
+```
+Newtonsoft.Json
+|-- Microsoft.CSharp
+|   `-- NETStandard.Library
+|       |-- Microsoft.NETCore.Platforms
+|       `-- Microsoft.Win32.Primitives
+|           |-- Microsoft.NETCore.Platforms
+|           `-- Microsoft.NETCore.Targets
+`-- NETStandard.Library (см. выше)
+```
+
+**Microsoft.Extensions.Logging 10.0.14**, пакетов в графе: 7
+
+```
+Microsoft.Extensions.Logging
+|-- Microsoft.Bcl.AsyncInterfaces
+|-- Microsoft.Extensions.DependencyInjection
+|   |-- Microsoft.Bcl.AsyncInterfaces
+|   `-- Microsoft.Extensions.DependencyInjection.Abstractions
+|       `-- Microsoft.Bcl.AsyncInterfaces
+|-- Microsoft.Extensions.Logging.Abstractions
+|   `-- Microsoft.Extensions.DependencyInjection.Abstractions (см. выше)
+`-- Microsoft.Extensions.Options
+    |-- Microsoft.Extensions.DependencyInjection.Abstractions (см. выше)
+    `-- Microsoft.Extensions.Primitives
+```
+
+**Moq 4.20.72**, пакетов в графе: 2
+
+```
+Moq
+`-- Castle.Core
+```
+
+### Сравнение с nuget.org
+
+Прямые зависимости корневых пакетов сверены со страницами пакетов на
+nuget.org (раздел Dependencies):
+
+| Пакет | nuget.org (все платформы вместе) | depviz без фильтра | depviz с фильтром `System` |
+|---|---|---|---|
+| Newtonsoft.Json 13.0.4 | Microsoft.CSharp, NETStandard.Library, System.ComponentModel.TypeConverter, System.Runtime.Serialization.Formatters, System.Runtime.Serialization.Primitives, System.Xml.XmlDocument | совпадает, 6 пакетов | Microsoft.CSharp, NETStandard.Library |
+| Microsoft.Extensions.Logging 10.0.14 | Microsoft.Bcl.AsyncInterfaces, Microsoft.Extensions.DependencyInjection, Microsoft.Extensions.Logging.Abstractions, Microsoft.Extensions.Options, System.Diagnostics.DiagnosticSource, System.ValueTuple | совпадает, 6 пакетов | первые четыре |
+| Moq 4.20.72 | Castle.Core, System.Threading.Tasks.Extensions | совпадает, 2 пакета | Castle.Core |
+
+Что показало сравнение:
+
+- **Платформы дают главное расхождение.** На nuget.org зависимости разбиты по
+  группам. У `Newtonsoft.Json` 13.0.4 группы `net6.0`, `netstandard2.0` и
+  `net45` **пустые**, а все 6 зависимостей лежат только в группах
+  `netstandard1.0` и `netstandard1.3`. Проект на .NET 8 получит от этого
+  пакета ноль зависимостей, поэтому `dotnet list package --include-transitive`
+  для такого проекта их не покажет. `depviz` объединяет все группы, и его граф
+  шире.
+- **Вторые и более глубокие уровни** (например, `NETStandard.Library` и
+  `Microsoft.Win32.Primitives`) получены тем же способом: по последней версии
+  каждого пакета. На nuget.org я их по отдельности не сверял.
+- **Версии.** `depviz` берёт последнюю версию, а NuGet выбирает минимальную,
+  подходящую под диапазон (`>= 1.6.1` даёт `1.6.1`), поэтому глубокие уровни
+  могут отличаться.
+
 ## Установка, запуск, тесты
 
 Нужны Python 3.10+ и (для картинок) Graphviz. Команды для Windows (PowerShell):
