@@ -20,3 +20,7 @@ class PackageNotFoundError(RepositoryError):
 
 class GraphError(Exception):
     """граф нельзя построить"""
+
+
+class RenderError(Exception):
+    """изображение не удалось сохранить"""
