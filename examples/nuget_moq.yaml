@@ -1,0 +1,6 @@
+package_name: Moq
+repository: https://api.nuget.org/v3/index.json
+test_mode: false
+output_image: moq.png
+ascii_tree: true
+filter_substring: System

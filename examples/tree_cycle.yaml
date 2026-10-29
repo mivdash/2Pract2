@@ -1,0 +1,6 @@
+package_name: A
+repository: examples/cycle.txt
+test_mode: true
+output_image: tree_cycle.png
+ascii_tree: true
+filter_substring: ""

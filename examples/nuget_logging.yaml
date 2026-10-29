@@ -1,0 +1,6 @@
+package_name: Microsoft.Extensions.Logging
+repository: https://api.nuget.org/v3/index.json
+test_mode: false
+output_image: logging.png
+ascii_tree: true
+filter_substring: System

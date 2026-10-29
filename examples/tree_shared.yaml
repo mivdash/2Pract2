@@ -1,0 +1,6 @@
+package_name: A
+repository: examples/shared.txt
+test_mode: true
+output_image: tree_shared.png
+ascii_tree: true
+filter_substring: ""
