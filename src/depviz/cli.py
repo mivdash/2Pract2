@@ -2,9 +2,10 @@
 
 import argparse
 import sys
-from dataclasses import asdict
 
 from depviz.config import ConfigError, load_config
+from depviz.errors import RepositoryError
+from depviz.nuget import get_package
 
 DEFAULT_CONFIG = "config.yaml"
 EXIT_OK = 0
@@ -26,10 +27,21 @@ def build_parser():
     return parser
 
 
-def print_config(config):
-    """вывод параметров"""
-    for key, value in asdict(config).items():
-        print(f"{key}: {value}")
+def check_supported(config):
+    """тестовый режим появится на следующем этапе"""
+    if config.test_mode:
+        raise ConfigError("Тестовый режим пока не поддерживается")
+
+
+def print_package(info):
+    """вывод пакета и его прямых зависимостей"""
+    print(f"Пакет: {info.name} {info.version}")
+    if not info.dependencies:
+        print("Прямые зависимости: нет")
+        return
+    print(f"Прямые зависимости: {len(info.dependencies)}")
+    for dependency in info.dependencies:
+        print(f"  {dependency.name} {dependency.version_range}".rstrip())
 
 
 def main(argv=None):
@@ -37,8 +49,10 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
         config = load_config(args.config)
-    except ConfigError as err:
+        check_supported(config)
+        info = get_package(config.package_name, config.repository)
+    except (ConfigError, RepositoryError) as err:
         print(f"Ошибка: {err}", file=sys.stderr)
         return EXIT_ERROR
-    print_config(config)
+    print_package(info)
     return EXIT_OK
