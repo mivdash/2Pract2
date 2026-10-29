@@ -3,58 +3,92 @@
 from depviz import cli
 from depviz.cli import EXIT_ERROR, EXIT_OK, main
 from depviz.errors import PackageNotFoundError
-from depviz.nuget import Dependency, PackageInfo
+
+REPO_TEXT = "A: B C\nB: C\nC:\n"
 
 
-def fake_package(dependencies):
-    """подмена получения пакета"""
+def make_config(tmp_path, write_config, repo_text=REPO_TEXT, extra=""):
+    """конфиг тестового режима с файлом репозитория"""
+    repo = tmp_path / "repo.txt"
+    repo.write_text(repo_text, encoding="utf-8")
+    return write_config(
+        "package_name: A\n"
+        f"repository: {repo}\n"
+        "test_mode: true\n"
+        "output_image: graph.png\n"
+        "ascii_tree: false\n"
+        f'filter_substring: "{extra}"\n'
+    )
 
-    def get_package(name, repository):
-        """возвращает готовый пакет"""
-        return PackageInfo(name, "2.0.0", dependencies)
 
-    return get_package
+def fake_nuget_source(graph):
+    """подмена источника nuget готовым словарём"""
+
+    def make_source(repository):
+        """источник по словарю"""
+
+        def source(name):
+            """зависимости пакета из словаря"""
+            if name not in graph:
+                raise PackageNotFoundError(f"Пакет не найден: {name}")
+            return graph[name]
+
+        return source
+
+    return make_source
 
 
-def test_prints_direct_dependencies(write_config, capsys, monkeypatch):
-    """печатаются версия пакета и его прямые зависимости"""
-    deps = [Dependency("A", "[1.0.0, )"), Dependency("B", "[2.1.0, 3.0.0)")]
-    monkeypatch.setattr(cli, "get_package", fake_package(deps))
-    code = main([write_config()])
+def test_prints_graph_in_test_mode(tmp_path, write_config, capsys):
+    """в тестовом режиме печатается граф из файла"""
+    path = make_config(tmp_path, write_config)
+    code = main([path])
     out = capsys.readouterr().out.splitlines()
     assert code == EXIT_OK
     assert out == [
-        "Пакет: Newtonsoft.Json 2.0.0",
-        "Прямые зависимости: 2",
-        "  A [1.0.0, )",
-        "  B [2.1.0, 3.0.0)",
+        "Граф зависимостей пакета A (пакетов: 3)",
+        "A -> B, C",
+        "B -> C",
+        "C -> (нет зависимостей)",
     ]
 
 
-def test_prints_message_without_dependencies(
-    write_config, capsys, monkeypatch
-):
-    """у пакета без зависимостей выводится слово нет"""
-    monkeypatch.setattr(cli, "get_package", fake_package([]))
+def test_filter_is_applied(tmp_path, write_config, capsys):
+    """подстрока фильтра исключает пакеты"""
+    path = make_config(tmp_path, write_config, extra="B")
+    main([path])
+    out = capsys.readouterr().out.splitlines()
+    assert out[1:] == ["A -> C", "C -> (нет зависимостей)"]
+
+
+def test_real_mode_uses_nuget_source(write_config, capsys, monkeypatch):
+    """без тестового режима зависимости берутся из nuget"""
+    graph = {"Newtonsoft.Json": ["Dep.One"], "Dep.One": []}
+    monkeypatch.setattr(cli.nuget, "make_source", fake_nuget_source(graph))
     code = main([write_config()])
     out = capsys.readouterr().out.splitlines()
     assert code == EXIT_OK
-    assert out[-1] == "Прямые зависимости: нет"
+    assert out[1:] == [
+        "Newtonsoft.Json -> Dep.One",
+        "Dep.One -> (нет зависимостей)",
+    ]
 
 
-def test_repository_error_goes_to_stderr(write_config, capsys, monkeypatch):
-    """ошибка репозитория выводится в stderr с кодом 1"""
-
-    def failing(name, repository):
-        """всегда сообщает, что пакет не найден"""
-        raise PackageNotFoundError(f"Пакет не найден: {name}")
-
-    monkeypatch.setattr(cli, "get_package", failing)
+def test_unknown_package_goes_to_stderr(write_config, capsys, monkeypatch):
+    """неизвестный пакет выводится в stderr с кодом 1"""
+    monkeypatch.setattr(cli.nuget, "make_source", fake_nuget_source({}))
     code = main([write_config()])
     captured = capsys.readouterr()
     assert code == EXIT_ERROR
     assert captured.out == ""
     assert captured.err == "Ошибка: Пакет не найден: Newtonsoft.Json\n"
+
+
+def test_broken_test_repository(tmp_path, write_config, capsys):
+    """ошибка в файле репозитория выводится в stderr"""
+    path = make_config(tmp_path, write_config, repo_text="A B\n")
+    code = main([path])
+    assert code == EXIT_ERROR
+    assert "Строка 1" in capsys.readouterr().err
 
 
 def test_config_error_goes_to_stderr(capsys):
@@ -64,18 +98,3 @@ def test_config_error_goes_to_stderr(capsys):
     assert code == EXIT_ERROR
     assert captured.out == ""
     assert captured.err.startswith("Ошибка:")
-
-
-def test_test_mode_is_not_supported_yet(write_config, test_repo_file, capsys):
-    """тестовый режим пока даёт понятную ошибку"""
-    text = (
-        "package_name: A\n"
-        f"repository: {test_repo_file}\n"
-        "test_mode: true\n"
-        "output_image: graph.png\n"
-        "ascii_tree: false\n"
-        'filter_substring: ""\n'
-    )
-    code = main([write_config(text)])
-    assert code == EXIT_ERROR
-    assert "Тестовый режим" in capsys.readouterr().err

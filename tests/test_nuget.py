@@ -11,6 +11,7 @@ from depviz.nuget import (
     Dependency,
     find_registration_base,
     get_package,
+    make_source,
     parse_version,
     registration_url,
 )
@@ -191,3 +192,10 @@ def test_version_order(older, newer):
 def test_version_suffix_is_ignored():
     """суффикс предварительной версии не мешает разбору"""
     assert parse_version("1.2.3-beta+build") == (1, 2, 3, 0)
+
+
+def test_source_returns_dependency_names():
+    """источник для графа отдаёт только имена зависимостей"""
+    fetch = make_repo([make_entry("1.0.0", [dep("B"), dep("A")])])
+    source = make_source(REPO, fetch)
+    assert source("Demo.Pkg") == ["A", "B"]

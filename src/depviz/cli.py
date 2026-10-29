@@ -3,13 +3,15 @@
 import argparse
 import sys
 
+from depviz import nuget, testrepo
 from depviz.config import ConfigError, load_config
-from depviz.errors import RepositoryError
-from depviz.nuget import get_package
+from depviz.errors import GraphError, RepositoryError
+from depviz.graph import build_graph
 
 DEFAULT_CONFIG = "config.yaml"
 EXIT_OK = 0
 EXIT_ERROR = 1
+NO_DEPENDENCIES = "(нет зависимостей)"
 
 
 def build_parser():
@@ -27,21 +29,20 @@ def build_parser():
     return parser
 
 
-def check_supported(config):
-    """тестовый режим появится на следующем этапе"""
+def make_source(config):
+    """источник зависимостей: файл в тестовом режиме, иначе nuget"""
     if config.test_mode:
-        raise ConfigError("Тестовый режим пока не поддерживается")
+        packages = testrepo.load_repository(config.repository)
+        return testrepo.make_source(packages)
+    return nuget.make_source(config.repository)
 
 
-def print_package(info):
-    """вывод пакета и его прямых зависимостей"""
-    print(f"Пакет: {info.name} {info.version}")
-    if not info.dependencies:
-        print("Прямые зависимости: нет")
-        return
-    print(f"Прямые зависимости: {len(info.dependencies)}")
-    for dependency in info.dependencies:
-        print(f"  {dependency.name} {dependency.version_range}".rstrip())
+def print_graph(root, graph):
+    """вывод графа списком: пакет и его зависимости"""
+    print(f"Граф зависимостей пакета {root} (пакетов: {len(graph)})")
+    for name, dependencies in graph.items():
+        targets = ", ".join(dependencies) or NO_DEPENDENCIES
+        print(f"{name} -> {targets}")
 
 
 def main(argv=None):
@@ -49,10 +50,12 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     try:
         config = load_config(args.config)
-        check_supported(config)
-        info = get_package(config.package_name, config.repository)
-    except (ConfigError, RepositoryError) as err:
+        source = make_source(config)
+        graph = build_graph(
+            config.package_name, source, config.filter_substring
+        )
+    except (ConfigError, RepositoryError, GraphError) as err:
         print(f"Ошибка: {err}", file=sys.stderr)
         return EXIT_ERROR
-    print_package(info)
+    print_graph(config.package_name, graph)
     return EXIT_OK

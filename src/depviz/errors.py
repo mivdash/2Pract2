@@ -1,4 +1,4 @@
-"""ошибки работы с репозиторием"""
+"""ошибки работы с репозиторием и графом"""
 
 
 class RepositoryError(Exception):
@@ -16,3 +16,7 @@ class HttpStatusError(RepositoryError):
 
 class PackageNotFoundError(RepositoryError):
     """пакет не найден в репозитории"""
+
+
+class GraphError(Exception):
+    """граф нельзя построить"""

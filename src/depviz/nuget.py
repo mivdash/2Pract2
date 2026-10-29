@@ -109,6 +109,16 @@ def fetch_registration(base, name, fetch):
         raise
 
 
+def make_source(repository, fetch=fetch_json):
+    """источник зависимостей из nuget для построения графа"""
+    def source(name):
+        """имена прямых зависимостей пакета"""
+        package = get_package(name, repository, fetch)
+        return [item.name for item in package.dependencies]
+
+    return source
+
+
 def get_package(name, repository, fetch=fetch_json):
     """возвращает последнюю версию пакета и его прямые зависимости"""
     index = fetch(repository)
