@@ -2,13 +2,15 @@
 
 from depviz import cli
 from depviz.cli import EXIT_ERROR, EXIT_OK, main
-from depviz.errors import PackageNotFoundError
+from depviz.errors import PackageNotFoundError, RenderError
 
 REPO_TEXT = "A: B C\nB: C\nC:\n"
+SAVED_LINES = 2
 
 
 def make_config(
-    tmp_path, write_config, repo_text=REPO_TEXT, extra="", root="A"
+    tmp_path, write_config, repo_text=REPO_TEXT, extra="", root="A",
+    ascii=False,
 ):
     """конфиг тестового режима с файлом репозитория"""
     repo = tmp_path / "repo.txt"
@@ -18,7 +20,7 @@ def make_config(
         f"repository: {repo}\n"
         "test_mode: true\n"
         "output_image: graph.png\n"
-        "ascii_tree: false\n"
+        f"ascii_tree: {str(ascii).lower()}\n"
         f'filter_substring: "{extra}"\n'
     )
 
@@ -44,7 +46,7 @@ def test_prints_graph_in_test_mode(tmp_path, write_config, capsys):
     """в тестовом режиме печатается граф из файла"""
     path = make_config(tmp_path, write_config)
     code = main([path])
-    out = capsys.readouterr().out.splitlines()
+    out = capsys.readouterr().out.splitlines()[:-SAVED_LINES]
     assert code == EXIT_OK
     assert out == [
         "Граф зависимостей пакета A (пакетов: 3)",
@@ -58,7 +60,7 @@ def test_filter_is_applied(tmp_path, write_config, capsys):
     """подстрока фильтра исключает пакеты"""
     path = make_config(tmp_path, write_config, extra="B")
     main([path])
-    out = capsys.readouterr().out.splitlines()
+    out = capsys.readouterr().out.splitlines()[:-SAVED_LINES]
     assert out[1:] == ["A -> C", "C -> (нет зависимостей)"]
 
 
@@ -67,12 +69,9 @@ def test_real_mode_uses_nuget_source(write_config, capsys, monkeypatch):
     graph = {"Newtonsoft.Json": ["Dep.One"], "Dep.One": []}
     monkeypatch.setattr(cli.nuget, "make_source", fake_nuget_source(graph))
     code = main([write_config()])
-    out = capsys.readouterr().out.splitlines()
+    out = capsys.readouterr().out.splitlines()[:-SAVED_LINES]
     assert code == EXIT_OK
-    assert out[1:] == [
-        "Newtonsoft.Json -> Dep.One",
-        "Dep.One -> (нет зависимостей)",
-    ]
+    assert out == ["Newtonsoft.Json", "`-- Dep.One"]
 
 
 def test_unknown_package_goes_to_stderr(write_config, capsys, monkeypatch):
@@ -119,3 +118,57 @@ def test_reverse_is_not_supported_for_nuget(write_config, capsys):
     captured = capsys.readouterr()
     assert code == EXIT_ERROR
     assert "только в тестовом режиме" in captured.err
+
+
+def test_ascii_tree_is_printed_when_enabled(tmp_path, write_config, capsys):
+    """при ascii_tree: true печатается дерево вместо списка"""
+    path = make_config(tmp_path, write_config, ascii=True)
+    code = main([path])
+    out = capsys.readouterr().out.splitlines()[:-SAVED_LINES]
+    assert code == EXIT_OK
+    assert out == [
+        "A",
+        "|-- B",
+        "|   `-- C",
+        "`-- C",
+    ]
+
+
+def test_image_paths_are_reported(
+    tmp_path, write_config, capsys, no_image_files
+):
+    """после построения сообщается, где сохранены dot и png"""
+    path = make_config(tmp_path, write_config)
+    main([path])
+    out = capsys.readouterr().out.splitlines()
+    assert out[-2:] == [
+        "Описание Graphviz сохранено: graph.dot",
+        "Изображение сохранено: graph.png",
+    ]
+    root, graph, image = no_image_files[0]
+    assert (root, image) == ("A", "graph.png")
+    assert graph == {"A": ["B", "C"], "B": ["C"], "C": []}
+
+
+def test_reverse_mode_does_not_save_image(
+    tmp_path, write_config, no_image_files
+):
+    """режим обратных зависимостей изображение не создаёт"""
+    path = make_config(tmp_path, write_config)
+    main(["--reverse", path])
+    assert no_image_files == []
+
+
+def test_render_error_goes_to_stderr(
+    tmp_path, write_config, capsys, monkeypatch
+):
+    """ошибка рисования выводится в stderr с кодом 1"""
+
+    def failing(root, graph, image):
+        """graphviz не установлен"""
+        raise RenderError("Не найдена программа dot")
+
+    monkeypatch.setattr(cli, "save_image", failing)
+    code = main([make_config(tmp_path, write_config)])
+    assert code == EXIT_ERROR
+    assert "Не найдена программа dot" in capsys.readouterr().err

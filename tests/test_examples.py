@@ -5,9 +5,11 @@ from pathlib import Path
 import pytest
 
 from depviz.cli import EXIT_ERROR, EXIT_OK, main
+from depviz.config import load_config
 
 ROOT = Path(__file__).resolve().parent.parent
 EXAMPLES = ROOT / "examples"
+SAVED_LINES = 2
 
 
 def run_example(name, monkeypatch, capsys, reverse=False):
@@ -37,7 +39,7 @@ def test_example_output(name, expected, monkeypatch, capsys):
     """пример печатает ожидаемый граф"""
     code, captured = run_example(name, monkeypatch, capsys)
     assert code == EXIT_OK
-    assert captured.out.splitlines()[1:] == expected
+    assert captured.out.splitlines()[1:-SAVED_LINES] == expected
 
 
 @pytest.mark.parametrize(
@@ -87,3 +89,38 @@ def test_reverse_example_output(name, expected, monkeypatch, capsys):
     assert code == EXIT_OK
     assert captured.out.splitlines()[1:] == expected
 
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [
+        (
+            "tree_shared",
+            [
+                "A",
+                "|-- B",
+                "|   `-- D",
+                "|       `-- E",
+                "`-- C",
+                "    `-- D (см. выше)",
+            ],
+        ),
+        (
+            "tree_cycle",
+            ["A", "`-- B", "    `-- C", "        `-- A (цикл)"],
+        ),
+    ],
+)
+def test_tree_example_output(name, expected, monkeypatch, capsys):
+    """пример печатает ожидаемое ascii-дерево"""
+    code, captured = run_example(name, monkeypatch, capsys)
+    assert code == EXIT_OK
+    assert captured.out.splitlines()[:-SAVED_LINES] == expected
+
+
+@pytest.mark.parametrize(
+    "path", sorted(EXAMPLES.glob("*.yaml")), ids=lambda path: path.stem
+)
+def test_every_example_config_is_valid(path, monkeypatch):
+    """все конфиги из examples проходят проверку"""
+    monkeypatch.chdir(ROOT)
+    load_config(str(path))
