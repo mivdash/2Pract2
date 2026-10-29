@@ -86,18 +86,11 @@ def test_missing_key(write_config, key):
         load_config(write_config("\n".join(lines)))
 
 
-def test_unknown_key(write_config):
-    """лишний параметр"""
-    with pytest.raises(ConfigError, match="Неизвестные.*color"):
-        load_config(write_config(VALID_YAML + "color: red\n"))
-
-
 @pytest.mark.parametrize(
     "old, new, message",
     [
         ("package_name: Newtonsoft.Json", "package_name: 42", "строкой"),
         ("package_name: Newtonsoft.Json", 'package_name: ""', "пустым"),
-        ("package_name: Newtonsoft.Json", 'package_name: "a b"', "пробел"),
         ("repository: https://api.nuget.org/v3/index.json",
          "repository: not-a-url", "URL"),
         ("repository: https://api.nuget.org/v3/index.json",
@@ -107,7 +100,6 @@ def test_unknown_key(write_config):
         ("test_mode: false", "test_mode: yes please", "true или false"),
         ("test_mode: false", "test_mode: 1", "true или false"),
         ("output_image: graph.png", "output_image: graph.jpg", ".png"),
-        ("output_image: graph.png", "output_image: out/graph.png", "путь"),
         ("ascii_tree: true", "ascii_tree: maybe", "true или false"),
         ('filter_substring: ""', "filter_substring: 5", "строкой"),
     ],

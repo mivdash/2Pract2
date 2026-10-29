@@ -48,11 +48,8 @@ def check_keys(data):
     """проверка набора ключей"""
     expected = {field.name for field in fields(Config)}
     missing = sorted(expected - data.keys())
-    unknown = sorted(data.keys() - expected)
     if missing:
         raise ConfigError(f"Не хватает параметров: {', '.join(missing)}")
-    if unknown:
-        raise ConfigError(f"Неизвестные параметры: {', '.join(unknown)}")
 
 
 def require_str(data, key, allow_empty=False):
@@ -72,12 +69,6 @@ def require_bool(data, key):
     if not isinstance(value, bool):
         raise ConfigError(f"Параметр '{key}' должен быть true или false")
     return value
-
-
-def check_package_name(name):
-    """проверка имени пакета"""
-    if any(char.isspace() for char in name):
-        raise ConfigError("Имя пакета не должно содержать пробелов")
 
 
 def check_repository(repository, test_mode):
@@ -101,8 +92,6 @@ def check_output_image(name):
         raise ConfigError(
             f"Имя файла изображения должно оканчиваться на {IMAGE_EXTENSION}"
         )
-    if Path(name).name != name:
-        raise ConfigError("Имя файла изображения не должно содержать путь")
 
 
 def load_config(path):
@@ -119,7 +108,6 @@ def load_config(path):
             data, "filter_substring", allow_empty=True
         ),
     )
-    check_package_name(config.package_name)
     check_repository(config.repository, config.test_mode)
     check_output_image(config.output_image)
     return config
