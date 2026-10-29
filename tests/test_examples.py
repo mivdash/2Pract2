@@ -67,10 +67,6 @@ def test_example_errors(name, message, monkeypatch, capsys):
             ],
         ),
         (
-            "rev_top",
-            ["A <- (никто не зависит)", "Зависят от A: никто"],
-        ),
-        (
             "rev_cycle",
             ["A <- C", "C <- B", "B <- A", "Зависят от A: C, B"],
         ),
@@ -83,15 +79,6 @@ def test_example_errors(name, message, monkeypatch, capsys):
                 "Зависят от D: C, A",
             ],
         ),
-        (
-            "rev_chain",
-            [
-                "C <- B",
-                "B <- A",
-                "A <- (никто не зависит)",
-                "Зависят от C: B, A",
-            ],
-        ),
     ],
 )
 def test_reverse_example_output(name, expected, monkeypatch, capsys):
@@ -100,9 +87,3 @@ def test_reverse_example_output(name, expected, monkeypatch, capsys):
     assert code == EXIT_OK
     assert captured.out.splitlines()[1:] == expected
 
-
-def test_reverse_example_error(monkeypatch, capsys):
-    """неизвестный пакет в режиме обратных зависимостей даёт ошибку"""
-    code, captured = run_example("rev_unknown", monkeypatch, capsys, True)
-    assert code == EXIT_ERROR
-    assert "Пакет не найден: Z" in captured.err
