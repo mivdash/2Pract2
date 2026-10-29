@@ -56,7 +56,7 @@ def render_png(text, image, runner=subprocess.run):
         ) from err
     except OSError as err:
         raise RenderError(f"Не удалось запустить dot: {err}") from err
-    if result.returncode != 0:
+    if result.returncode:
         message = result.stderr.decode("utf-8", "replace").strip()
         raise RenderError(f"dot завершился с ошибкой: {message}")
 

@@ -185,11 +185,8 @@ A <- (никто не зависит)
 | Файл | Что показывает |
 |---|---|
 | `rev_diamond.yaml` | у пакета D два пользователя, верхний пакет A один раз |
-| `rev_chain.yaml` | цепочка вверх от C |
-| `rev_top.yaml` | от верхнего пакета никто не зависит |
 | `rev_cycle.yaml` | цикл не зацикливает обход |
 | `rev_filter.yaml` | фильтр `B` убирает пакет B из результата |
-| `rev_unknown.yaml` | ошибка: пакета нет в файле |
 
 ## Что делает этап 5
 
@@ -252,7 +249,6 @@ $env:PYTHONPATH="src"; py -m depviz examples/tree_shared.yaml
 | Файл | Что показывает |
 |---|---|
 | `tree_shared.yaml` | дерево с общим пакетом D, пометка `(см. выше)` |
-| `tree_cycle.yaml` | дерево с циклом, пометка `(цикл)` |
 | `nuget_newtonsoft.yaml` | настоящий пакет `Newtonsoft.Json` |
 | `nuget_logging.yaml` | настоящий пакет `Microsoft.Extensions.Logging` |
 | `nuget_moq.yaml` | настоящий пакет `Moq` |
@@ -381,7 +377,7 @@ make install        # pip install -r requirements.txt
 make run            # запуск с config.yaml
 make run CONFIG=my.yaml
 make test           # pytest -v
-./run.sh examples/tree_shared.yaml
+make run CONFIG=examples/tree_shared.yaml
 ```
 
 Ошибки печатаются в stderr со словом «Ошибка:», код завершения 1:
@@ -399,6 +395,5 @@ src/depviz/   исходный код (config, cli, http, nuget, graph, testrepo
 tests/        тесты pytest
 examples/     примеры тестового репозитория и настоящих пакетов
 config.yaml   пример конфигурации
-run.sh        скрипт запуска (Linux, macOS)
 Makefile      install, run, test
 ```

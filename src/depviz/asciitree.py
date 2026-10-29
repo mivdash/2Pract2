@@ -21,8 +21,9 @@ def add_children(name, prefix, path, graph, state):
     """добавляет строки для зависимостей пакета, обходя дерево вглубь"""
     lines, expanded = state
     children = graph.get(name, [])
+    last_index = len(children) - 1
     for index, child in enumerate(children):
-        last = index == len(children) - 1
+        last = index == last_index
         mark = child_mark(child, path, expanded, graph)
         lines.append(prefix + (LAST_BRANCH if last else BRANCH) + child + mark)
         if not mark:

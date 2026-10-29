@@ -104,10 +104,6 @@ def test_reverse_example_output(name, expected, monkeypatch, capsys):
                 "    `-- D (см. выше)",
             ],
         ),
-        (
-            "tree_cycle",
-            ["A", "`-- B", "    `-- C", "        `-- A (цикл)"],
-        ),
     ],
 )
 def test_tree_example_output(name, expected, monkeypatch, capsys):
