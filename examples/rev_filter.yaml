@@ -1,0 +1,6 @@
+package_name: D
+repository: examples/diamond.txt
+test_mode: true
+output_image: graph.png
+ascii_tree: false
+filter_substring: "B"
