@@ -7,12 +7,14 @@ from depviz.errors import PackageNotFoundError
 REPO_TEXT = "A: B C\nB: C\nC:\n"
 
 
-def make_config(tmp_path, write_config, repo_text=REPO_TEXT, extra=""):
+def make_config(
+    tmp_path, write_config, repo_text=REPO_TEXT, extra="", root="A"
+):
     """конфиг тестового режима с файлом репозитория"""
     repo = tmp_path / "repo.txt"
     repo.write_text(repo_text, encoding="utf-8")
     return write_config(
-        "package_name: A\n"
+        f"package_name: {root}\n"
         f"repository: {repo}\n"
         "test_mode: true\n"
         "output_image: graph.png\n"
@@ -98,3 +100,22 @@ def test_config_error_goes_to_stderr(capsys):
     assert code == EXIT_ERROR
     assert captured.out == ""
     assert captured.err.startswith("Ошибка:")
+
+
+def test_reverse_in_test_mode(tmp_path, write_config, capsys):
+    """флаг --reverse печатает, кто зависит от пакета"""
+    text = "A: B\nB: C\nC:\n"
+    path = make_config(tmp_path, write_config, repo_text=text, root="C")
+    code = main(["--reverse", path])
+    out = capsys.readouterr().out.splitlines()
+    assert code == EXIT_OK
+    assert out[0] == "Обратные зависимости пакета C (пакетов: 3)"
+    assert out[-1] == "Зависят от C: B, A"
+
+
+def test_reverse_is_not_supported_for_nuget(write_config, capsys):
+    """для настоящего репозитория обратные зависимости дают понятную ошибку"""
+    code = main(["--reverse", write_config()])
+    captured = capsys.readouterr()
+    assert code == EXIT_ERROR
+    assert "только в тестовом режиме" in captured.err
