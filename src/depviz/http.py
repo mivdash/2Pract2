@@ -14,7 +14,7 @@ HEADERS = {"Accept-Encoding": "gzip", "User-Agent": "depviz/0.2"}
 
 def decode_body(data):
     """распаковывает gzip при необходимости и разбирает json"""
-    if data[:2] == GZIP_MAGIC:
+    if data.startswith(GZIP_MAGIC):
         data = gzip.decompress(data)
     return json.loads(data.decode("utf-8"))
 
