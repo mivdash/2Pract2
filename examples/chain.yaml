@@ -1,0 +1,6 @@
+package_name: A
+repository: examples/chain.txt
+test_mode: true
+output_image: graph.png
+ascii_tree: false
+filter_substring: ""
