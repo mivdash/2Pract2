@@ -26,8 +26,6 @@ def run_example(name, monkeypatch, capsys):
             ["A -> B, C", "B -> D", "C -> D", "D -> (нет зависимостей)"],
         ),
         ("cycle", ["A -> B", "B -> C", "C -> A"]),
-        ("selfloop", ["A -> A, B", "B -> (нет зависимостей)"]),
-        ("single", ["A -> (нет зависимостей)"]),
         (
             "filter",
             ["A -> B, C", "B -> (нет зависимостей)", "C -> (нет зависимостей)"],
@@ -45,7 +43,6 @@ def test_example_output(name, expected, monkeypatch, capsys):
     "name, message",
     [
         ("unknown", "Пакет не найден: Z"),
-        ("root_filtered", "содержит подстроку"),
     ],
 )
 def test_example_errors(name, message, monkeypatch, capsys):

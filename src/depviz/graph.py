@@ -20,11 +20,10 @@ def read_dependencies(name, source, is_root):
         return []
 
 
-def clean_dependencies(names, substring, canonical):
+def clean_dependencies(names, substring):
     """убирает повторы и отфильтрованные пакеты"""
     result = []
     for name in names:
-        name = canonical(name)
         if name not in result and not is_filtered(name, substring):
             result.append(name)
     return result
@@ -34,20 +33,13 @@ def build_graph(root, source, substring=""):
     """строит граф от корня, возвращает словарь пакет-список зависимостей"""
     if is_filtered(root, substring):
         raise GraphError(f"Пакет {root} содержит подстроку фильтра")
-    names = {}
-
-    def canonical(name):
-        """одно написание для имён, отличающихся регистром"""
-        return names.setdefault(name.lower(), name)
-
-    root = canonical(root)
     graph = {}
     queue = deque([root])
     seen = {root}
     while queue:
         name = queue.popleft()
         found = read_dependencies(name, source, name == root)
-        graph[name] = clean_dependencies(found, substring, canonical)
+        graph[name] = clean_dependencies(found, substring)
         for dependency in graph[name]:
             if dependency not in seen:
                 seen.add(dependency)

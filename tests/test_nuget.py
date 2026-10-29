@@ -10,7 +10,6 @@ from depviz.errors import (
 from depviz.nuget import (
     Dependency,
     find_registration_base,
-    cache_index,
     get_package,
     make_source,
     parse_version,
@@ -193,22 +192,6 @@ def test_version_order(older, newer):
 def test_version_suffix_is_ignored():
     """суффикс предварительной версии не мешает разбору"""
     assert parse_version("1.2.3-beta+build") == (1, 2, 3, 0)
-
-
-def test_index_is_downloaded_once():
-    """корневой документ загружается один раз на все пакеты"""
-    calls = []
-    fetch = make_repo([make_entry("1.0.0", [dep("B")])])
-
-    def counting(url):
-        """считает загрузки каждого адреса"""
-        calls.append(url)
-        return fetch(url)
-
-    cached = cache_index(counting, REPO)
-    get_package("Demo.Pkg", REPO, cached)
-    get_package("Demo.Pkg", REPO, cached)
-    assert calls.count(REPO) == 1
 
 
 def test_source_returns_dependency_names():

@@ -95,18 +95,6 @@ def test_unknown_dependency_is_a_leaf():
     assert graph_of("A: B\n") == {"A": ["B"], "B": []}
 
 
-def test_names_differing_in_case_are_one_package():
-    """имена, отличающиеся регистром, считаются одним пакетом"""
-    deps = {"Root": ["Lib.One", "lib.one"], "Lib.One": []}
-
-    def source(name):
-        """словарь без учёта регистра"""
-        key = name if name in deps else "Lib.One"
-        return deps[key]
-
-    assert build_graph("Root", source) == {"Root": ["Lib.One"], "Lib.One": []}
-
-
 def test_other_repository_errors_are_not_hidden():
     """сетевая ошибка при обходе не скрывается"""
 
